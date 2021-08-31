@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/importamscoapplication</path>
+    <page_callback>CRM_Amsco_Form_ImportAmscoApplication</page_callback>
+    <title>ImportAmscoApplication</title>
+    <access_arguments>import_amsco_application</access_arguments>
+  </item>
+</menu>
