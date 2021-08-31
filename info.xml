@@ -1,26 +1,26 @@
 <?xml version="1.0"?>
 <extension key="nl.pum.amsco" type="module">
   <file>amsco</file>
-  <name>FIXME</name>
-  <description>FIXME</description>
+  <name>Amsco Applications</name>
+  <description>This CiviCRM-extension can import CSV-data for AMSCO Applications</description>
   <license>AGPL-3.0</license>
   <maintainer>
     <author>ruudgithub</author>
     <email>ruudgithub@users.noreply.github.com</email>
   </maintainer>
   <urls>
-    <url desc="Main Extension Page">http://FIXME</url>
-    <url desc="Documentation">http://FIXME</url>
-    <url desc="Support">http://FIXME</url>
+    <url desc="Main Extension Page">https://github.com/PUMNL/nl.pum.amsco</url>
+    <url desc="Documentation">https://github.com/PUMNL/nl.pum.amsco/blob/master/README.md</url>
+    <url desc="Support"></url>
     <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
   </urls>
-  <releaseDate>2021-08-20</releaseDate>
+  <releaseDate>2021-08-31</releaseDate>
   <version>1.0</version>
   <develStage>alpha</develStage>
   <compatibility>
-    <ver>5.0</ver>
+    <ver>4.4</ver>
   </compatibility>
-  <comments>This is a new, undeveloped module</comments>
+  <comments></comments>
   <classloader>
     <psr4 prefix="Civi\" path="Civi"/>
   </classloader>
