@@ -229,9 +229,199 @@ class CRM_Amsco_Utils {
                 5 => array((int)$line[36],'Integer'), //balance sheet total
               )
             );
+
+            //Create Prof & CC Relationship on contact card
+            //first get country contact
+            $country_contact = civicrm_api('Contact', 'getsingle', array(
+              'version' => 3,
+              'sequential' => 1,
+              'contact_type' => 'Organization',
+              'contact_sub_type' => 'Country',
+              'organization_name' => $country['name']
+            ));
+
+            $project_officer_id = self::getProjectOfficerForCountry($country_contact['id']);
+            $country_coordinator_id = self::getCountryCoordinatorForCountry($country_contact['id']);
+
+            $project_officer = civicrm_api('Contact', 'getsingle', array('version' => 3, 'sequential' => 1, 'id' => $project_officer_id));
+            $country_coordinator = civicrm_api('Contact', 'getsingle', array('version' => 3, 'sequential' => 1, 'id' => $country_coordinator_id));
+
+            $projectOfficerRelationshipTypeId = self::getProjectOfficerRelationshipTypeId();
+            $countryCoordinatorRelationshipTypeId = self::getCountryCoordinatorRelationshipTypeId();
+
+            //Create prof relationship on client contact
+            if(!empty($project_officer['id'])){
+              $params_create_prof_relationship = array(
+                'version' => 3,
+                'sequential' => 1,
+                'contact_id_a' => $contact['id'],
+                'contact_id_b' => $project_officer['id'],
+                'relationship_type_id' => $projectOfficerRelationshipTypeId
+              );
+              $create_prof_relationship = civicrm_api('Relationship', 'create', $params_create_prof_relationship);
+            }
+
+            //Create cc relationship on client contact
+            if(!empty($country_coordinator['id'])){
+              $params_create_cc_relationship = array(
+                'version' => 3,
+                'sequential' => 1,
+                'contact_id_a' => $contact['id'],
+                'contact_id_b' => $country_coordinator['id'],
+                'relationship_type_id' => $countryCoordinatorRelationshipTypeId
+              );
+              $create_cc_relationship = civicrm_api('Relationship', 'create', $params_create_cc_relationship);
+            }
+
+            //Send e-mail notification to Prof & CC
+            global $base_url;
+            $domain = civicrm_api('Domain', 'getsingle', array('version' => 3, 'sequential' => 1));
+            $mail_from = $domain['from_email'];
+            $email_contacts = array($project_officer);
+
+            foreach($email_contacts as $key => $value) {
+              //Send e-mail to inform them
+              $mail_to = $value['email'];
+
+              $email = "A new project for AMSCO has been created in ProCus. <br />";
+              $email .= "See contact card: <a href=\"".CIVICRM_UF_BASEURL."civicrm/contact/view?reset=1&cid=".$contact['id']."\">".$line[6]."</a>";
+
+              $mail_subject = 'New AMSCO project has been added: '.$line[6];
+
+              $nl = "\r\n";
+              $mail_headers = 'MIME-Version: 1.0' . $nl;
+              $mail_headers .= 'Content-type: text/html; charset=iso-8859-1' . $nl;
+              $mail_headers .= 'From: ' . $mail_from . $nl;
+              $mail_headers .= 'Reply-To: ' . $mail_from . $nl;
+
+              $mail_message = '<html>';
+              $mail_message .= '<head>';
+              $mail_message .= '<title>';
+              $mail_message .= $mail_subject;
+              $mail_message .= '</title>';
+              $mail_message .= '</head>';
+              $mail_message .= '<body>';
+              $mail_message .= 'Dear '.$value['first_name'].',<br />';
+              $mail_message .= '<br />';
+              $mail_message .= 'A new project for AMSCO has been submitted, see details at: <a href="'.$base_url.'/civicrm/contact/view?reset=1&cid='.$contact['id'].'">'.$line[6].'</a><br />';
+              $mail_message .= '<br />';
+              $mail_message .= 'Kind regards,<br />';
+              $mail_message .= '<br />';
+              $mail_message .= 'PUM Netherlands senior experts';
+              $mail_message .= '</body>';
+              $mail_message .= '</html>';
+
+              $mail_sent = mail($mail_to, $mail_subject, $mail_message, $mail_headers);
+
+              if($mail_sent == FALSE){
+                CRM_Core_Error::debug_log_message('Unable to send e-mail to: '.$mail_to.' (contact ID: '.$value['id'].') about new AMSCO application: '.CIVICRM_UF_BASEURL."civicrm/contact/view?reset=1&cid=".$contact['id']);
+              }
+            }
           }
         }
       }
+    }
+  }
+
+  /**
+   * Method to find the project officer for a country
+   *
+   * @param int $countryId
+   * @return bool|int
+   */
+  public static function getProjectOfficerForCountry($countryId) {
+    if (empty($countryId)) {
+      return FALSE;
+    }
+
+    try {
+      $relationship_type_id = self::getProjectOfficerRelationshipTypeId();
+      $relationships = civicrm_api3('Relationship', 'get', array(
+        'relationship_type_id' => $relationship_type_id,
+        'contact_id_a' => $countryId,
+        'is_active' => 1,
+        'end_date' => NULL,
+      ));
+
+      // take the one that is not on a case
+      foreach ($relationships['values'] as $rel_id => $relationship) {
+        if (!isset($relationship['case_id']) && $relationship['is_active'] == 1 && !isset($relationship['end_date'])) {
+          return $relationship['contact_id_b'];
+        }
+      }
+    } catch (CiviCRM_API3_Exception $ex) {
+      return FALSE;
+    }
+  }
+
+  /**
+   * Method to set the relationship type id of the project officer
+   *
+   * @throws Exception
+   */
+  private static function getProjectOfficerRelationshipTypeId() {
+    try {
+      $projectOfficerRelationshipTypeId = civicrm_api3('RelationshipType', 'getvalue', array(
+        'name_a_b' => 'Project Officer for',
+        'name_b_a' => 'Project Officer is',
+        'return' => 'id'
+      ));
+
+      return $projectOfficerRelationshipTypeId;
+    } catch (CiviCRM_API3_Exception $ex) {
+      throw new Exception('Could not find a relationship Project Officer in '.__METHOD__
+        .', contact your system administrator. Error from API RelationshipType getvalue: '.$ex->getMessage());
+    }
+  }
+
+  /**
+   * Method to find the country coordinator for a country
+   *
+   * @param int $countryId
+   * @return bool|int
+   */
+  public static function getCountryCoordinatorForCountry($countryId) {
+    if (empty($countryId)) {
+      return FALSE;
+    }
+
+    try {
+      $relationship_type_id = self::getCountryCoordinatorRelationshipTypeId();
+      $relationships = civicrm_api3('Relationship', 'get', array(
+        'relationship_type_id' => $relationship_type_id,
+        'contact_id_a' => $countryId,
+        'is_active' => 1,
+        'end_date' => NULL
+      ));
+
+      // take the one that is not on a case
+      foreach ($relationships['values'] as $rel_id => $relationship) {
+        if (!isset($relationship['case_id']) && $relationship['is_active'] == 1 && !isset($relationship['end_date'])) {
+          return $relationship['contact_id_b'];
+        }
+      }
+    } catch (CiviCRM_API3_Exception $ex) {
+      return FALSE;
+    }
+  }
+
+  /**
+   * Method to set the relationship type id of the project officer
+   *
+   * @throws Exception
+   */
+  private static function getCountryCoordinatorRelationshipTypeId() {
+    try {
+      $countryCoordinatorRelationshipTypeId = civicrm_api3('RelationshipType', 'getvalue', array(
+        'name_a_b' => 'Country Coordinator is',
+        'name_b_a' => 'Country Coordinator for',
+        'return' => 'id'
+      ));
+
+      return $countryCoordinatorRelationshipTypeId;
+    } catch (CiviCRM_API3_Exception $ex) {
+      throw new Exception('Could not find a relationship Country Coordinator is in '.__METHOD__
+        .', contact your system administrator. Error from API RelationshipType getvalue: '.$ex->getMessage());
     }
   }
 }
