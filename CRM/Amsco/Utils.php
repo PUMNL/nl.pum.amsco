@@ -63,10 +63,17 @@ class CRM_Amsco_Utils {
                   'contact_id' => $contact['id'],
                   'location_type_id' => $location_type_work['id'],
                   'street_address' => $line[7],
-                  'postal_code' => $line[9],
                   'city' => $line[8],
                   'country_id' => $country['id']
                 );
+                if(strlen($line[9]) > 12){
+                  $error_msg = 'AMSCO Download - Unable to postal code for contact: '.$contact['id'].'. Postal code: '.$line[9].' is too long';
+                  CRM_Core_Error::debug_log_message($e->getMessage());
+                  $errors[] = $error_msg;
+                } else {
+                  $address_params['postal_code'] = $line[9];
+                }
+
 
                 $address = civicrm_api('Address', 'create', $address_params);
               } catch(CiviCRM_API3_Exception $e) {
@@ -74,7 +81,22 @@ class CRM_Amsco_Utils {
                 CRM_Core_Error::debug_log_message($e->getMessage());
                 $errors[] = $error_msg;
               }
+            } else {
+              //No address details, but create an address so we know that this company is from Kenya (applications are always from Kenya)
+              $country = civicrm_api('Country', 'getsingle', array('version' => 3, 'sequential' => 1, 'name' => 'Kenya'));
+
+              $address_params = array(
+                'version' => 3,
+                'sequential' => 1,
+                'contact_id' => $contact['id'],
+                'location_type_id' => $location_type_work['id'],
+                'country_id' => $country['id']
+              );
+
+              $address = civicrm_api('Address', 'create', $address_params);
+              CRM_Core_Error::debug_log_message('AMSCO Download - Unable to create address for contact: '.$contact['id'].'. Created empty address with country Kenya.');
             }
+
             try {
               if (!empty($line[10]) && strpos($line[10], '@') !== FALSE) {
                 $email = civicrm_api('Email', 'create', array('version' => 3, 'sequential' => 1, 'contact_id' => $contact['id'], 'location_type_id' => $location_type_work['id'], 'email' => $line[10]));
@@ -94,13 +116,23 @@ class CRM_Amsco_Utils {
             }
             try {
               if(!empty($line[11])){
-                $phone = civicrm_api('Phone', 'create', array('version' => 3, 'sequential' => 1, 'contact_id' => $contact['id'], 'location_type_id' => $location_type_work['id'], 'phone' => $line[11], 'phone_type_id' => $phone_type_id['value']));
+                if (preg_match("/^((\+[1-9]{1,4}[ \-]*)|(\([0-9]{2,3}\)[ \-]*)|([0-9]{2,4})[ \-]*)*?[0-9]{2,4}?[ \-]*[0-9]{2,4}?$/",$line[11])){
+                  $phone = civicrm_api('Phone', 'create', array('version' => 3, 'sequential' => 1, 'contact_id' => $contact['id'], 'location_type_id' => $location_type_work['id'], 'phone' => $line[11], 'phone_type_id' => $phone_type_id['value']));
+
+                  if($phone['is_error'] == 1){
+                    $error_msg = 'AMSCO Download - Unable to create phone number for contact ID: '.$contact['id'].', phone: '.$line[11];
+                    $errors[] = $error_msg;
+                  }
+                } else {
+                  $error_msg = 'AMSCO Download - No (valid) phone number found: '.$line[11].', for contact, contact ID: '.$contact['id'];
+                  $errors[] = $error_msg;
+                }
               } else {
-                $error_msg = 'AMSCO Download - No phone number found for contact, contact ID: '.$contact['id'];
+                $error_msg = 'AMSCO Download - No (valid) phone number found: '.$line[11].', for contact, contact ID: '.$contact['id'];
                 $errors[] = $error_msg;
               }
             } catch (CiviCRM_API3_Exception $e){
-              $error_msg = 'AMSCO Download - Unable to create phone for contact: '.$contact['id'];
+              $error_msg = 'AMSCO Download - No (valid) phone number found: '.$line[11].', for contact, contact ID: '.$contact['id'];
               CRM_Core_Error::debug_log_message($e->getMessage());
               $errors[] = $error_msg;
             }
@@ -142,12 +174,25 @@ class CRM_Amsco_Utils {
                   if(!empty($line[17])){
                     $error_msg = 'AMSCO Download - Invalid e-mailaddress for authorised contact, contact ID: '.$contact['id'].', email: '.$line[17];
                     $errors[] = $error_msg;
+                  } else {
+                    $error_msg = 'AMSCO Download - No e-mailaddress found for authorised contact, contact ID: '.$contact['id'].', email: '.$line[17];
+                    $errors[] = $error_msg;
                   }
                 }
 
                 //Create phone for authorised contact
-                $params_phone_authorised_contact = array('version' => 3, 'sequential' => 1, 'contact_id' => $result_authorised_contact['id'], 'location_type_id' => $location_type_work['id'], 'phone' => $line[18], 'phone_type_id' => $phone_type_id['value']);
-                $phone_authorised_contact = civicrm_api('Phone', 'create', $params_phone_authorised_contact);
+                if (preg_match("/^((\+[1-9]{1,4}[ \-]*)|(\([0-9]{2,3}\)[ \-]*)|([0-9]{2,4})[ \-]*)*?[0-9]{2,4}?[ \-]*[0-9]{2,4}?$/",$line[18])){
+                  $params_phone_authorised_contact = array('version' => 3, 'sequential' => 1, 'contact_id' => $result_authorised_contact['id'], 'location_type_id' => $location_type_work['id'], 'phone' => $line[18], 'phone_type_id' => $phone_type_id['value']);
+                  $phone_authorised_contact = civicrm_api('Phone', 'create', $params_phone_authorised_contact);
+
+                  if($phone_authorised_contact['is_error'] == 1){
+                    $error_msg = 'AMSCO Download - Unable to create phone number for authorised contact, contact ID: '.$result_authorised_contact['id'].', phone: '.$line[18];
+                    $errors[] = $error_msg;
+                  }
+                } else {
+                  $error_msg = 'AMSCO Download - No (valid) phone number found: '.$line[18].', for contact, contact ID: '.$result_authorised_contact['id'];
+                  $errors[] = $error_msg;
+                }
 
                 //Create relationship between authorised contact and organisation
                 $relationship_type_authorised_contact = civicrm_api('RelationshipType', 'getsingle', array('version' => 3, 'sequential' => 1, 'name_a_b' => 'Has authorised'));
@@ -188,14 +233,17 @@ class CRM_Amsco_Utils {
               );
 
               $pum_conditions_met = $line[5];
+
               if($pum_conditions_met == 'Yes') {
                 $conditions = 'I Agree';
               } else {
                 $conditions = 'NULL';
               }
+
               if($gender_from_file == 'Male' || $gender_from_file == 'Female') {
                 $sql_params[3] = array((int)$gender[$gender_from_file], 'Integer');
                 $sql_params[5] = array($conditions, 'String');
+
                 if($conditions == 'I Agree') {
                   $sql = "INSERT INTO `".$cg_additional_data['table_name']."` (`entity_id`, `".$ad_custom_fields['Products_and_or_Services_offered']."`,`".$ad_custom_fields['Where_and_how_are_the_products_of_services_sold']."`,`".$ad_custom_fields['gender_entrepeneur']."`,`".$ad_custom_fields['birthyear_entrepeneur']."`,`".$ad_custom_fields['Gentlemen_s_Agreement']."`) VALUES (".$contact['id'].", %1, %2, %3, %4, %5)";
                 } else {
@@ -206,8 +254,12 @@ class CRM_Amsco_Utils {
                   CRM_Core_DAO::executeQuery($sql, $sql_params);
                 }
               } else {
-                $sql = "INSERT INTO `".$cg_additional_data['table_name']."` (`entity_id`, `".$ad_custom_fields['Products_and_or_Services_offered']."`,`".$ad_custom_fields['Where_and_how_are_the_products_of_services_sold']."`,`".$ad_custom_fields['gender_entrepeneur']."`,`".$ad_custom_fields['birthyear_entrepeneur']."`) VALUES (".$contact['id'].", %1, %2, NULL, %4)";
-
+                $sql_params[5] = array($conditions, 'String');
+                if($conditions == 'I Agree') {
+                  $sql = "INSERT INTO `".$cg_additional_data['table_name']."` (`entity_id`, `".$ad_custom_fields['Products_and_or_Services_offered']."`,`".$ad_custom_fields['Where_and_how_are_the_products_of_services_sold']."`,`".$ad_custom_fields['gender_entrepeneur']."`,`".$ad_custom_fields['birthyear_entrepeneur']."`,`".$ad_custom_fields['Gentlemen_s_Agreement']."`) VALUES (".$contact['id'].", %1, %2, NULL, %4, %5)";
+                } else {
+                  $sql = "INSERT INTO `".$cg_additional_data['table_name']."` (`entity_id`, `".$ad_custom_fields['Products_and_or_Services_offered']."`,`".$ad_custom_fields['Where_and_how_are_the_products_of_services_sold']."`,`".$ad_custom_fields['gender_entrepeneur']."`,`".$ad_custom_fields['birthyear_entrepeneur']."`,`".$ad_custom_fields['Gentlemen_s_Agreement']."`) VALUES (".$contact['id'].", %1, %2, NULL, %4, NULL)";
+                }
                 if(!empty($sql_params[1]) && !empty($sql_params[2]) && !empty($sql_params[4])){
                   CRM_Core_DAO::executeQuery($sql, $sql_params);
                 }
