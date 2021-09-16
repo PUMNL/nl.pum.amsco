@@ -474,50 +474,52 @@ class CRM_Amsco_Utils {
               $helpdesk_contact = civicrm_api('Contact', 'getsingle', $params_helpdesk_contact);
             }
 
-            if(!empty($helpdesk_contact['email'])){
+            if(count($errors) > 0){
+              if(!empty($helpdesk_contact['email'])){
 
-              $mail_to_helpdesk = $helpdesk_contact['email'];
-              $mail_subject_helpdesk = "Some errors occurred while importing AMSCO Applications";
-              $nl = "\r\n";
-              $mail_headers_helpdesk = 'MIME-Version: 1.0' . $nl;
-              $mail_headers_helpdesk .= 'Content-type: text/html; charset=iso-8859-1' . $nl;
-              $mail_headers_helpdesk .= 'From: ' . $mail_from . $nl;
-              $mail_headers_helpdesk .= 'Reply-To: ' . $mail_from . $nl;
+                $mail_to_helpdesk = $helpdesk_contact['email'];
+                $mail_subject_helpdesk = "Some errors occurred while importing AMSCO Applications";
+                $nl = "\r\n";
+                $mail_headers_helpdesk = 'MIME-Version: 1.0' . $nl;
+                $mail_headers_helpdesk .= 'Content-type: text/html; charset=iso-8859-1' . $nl;
+                $mail_headers_helpdesk .= 'From: ' . $mail_from . $nl;
+                $mail_headers_helpdesk .= 'Reply-To: ' . $mail_from . $nl;
 
-              $mail_message_helpdesk = '<html>';
-              $mail_message_helpdesk .= '<head>';
-              $mail_message_helpdesk .= '<title>';
-              $mail_message_helpdesk .= $mail_subject;
-              $mail_message_helpdesk .= '</title>';
-              $mail_message_helpdesk .= '</head>';
-              $mail_message_helpdesk .= '<body>';
-              $mail_message_helpdesk .= 'The following errors occurred while importing AMSCO Applications: <br /><br />';
+                $mail_message_helpdesk = '<html>';
+                $mail_message_helpdesk .= '<head>';
+                $mail_message_helpdesk .= '<title>';
+                $mail_message_helpdesk .= $mail_subject;
+                $mail_message_helpdesk .= '</title>';
+                $mail_message_helpdesk .= '</head>';
+                $mail_message_helpdesk .= '<body>';
+                $mail_message_helpdesk .= 'The following errors occurred while importing AMSCO Applications: <br /><br />';
 
-              foreach($errors as $error_msg){
-                //Put to log
-                CRM_Core_Error::debug_log_message($error_msg);
-                //and mail e-mail to helpdesk
-                $mail_message_helpdesk .= $error_msg.'<br />';
-              }
+                foreach($errors as $error_msg){
+                  //Put to log
+                  CRM_Core_Error::debug_log_message($error_msg);
+                  //and mail e-mail to helpdesk
+                  $mail_message_helpdesk .= $error_msg.'<br />';
+                }
 
-              $mail_message_helpdesk .= '<br />';
-              $mail_message_helpdesk .= 'Kind regards,<br />';
-              $mail_message_helpdesk .= '<br />';
-              $mail_message_helpdesk .= 'PUM Netherlands senior experts';
-              $mail_message_helpdesk .= '</body>';
-              $mail_message_helpdesk .= '</html>';
+                $mail_message_helpdesk .= '<br />';
+                $mail_message_helpdesk .= 'Kind regards,<br />';
+                $mail_message_helpdesk .= '<br />';
+                $mail_message_helpdesk .= 'PUM Netherlands senior experts';
+                $mail_message_helpdesk .= '</body>';
+                $mail_message_helpdesk .= '</html>';
 
-              $mail_sent_helpdesk = mail($mail_to_helpdesk, $mail_subject_helpdesk, $mail_message_helpdesk, $mail_headers_helpdesk);
+                $mail_sent_helpdesk = mail($mail_to_helpdesk, $mail_subject_helpdesk, $mail_message_helpdesk, $mail_headers_helpdesk);
 
-              if($mail_sent_helpdesk == FALSE){
-                CRM_Core_Error::debug_log_message('Unable to send error message e-mail to: '.$mail_to_helpdesk.', please check log instead');
+                if($mail_sent_helpdesk == FALSE){
+                  CRM_Core_Error::debug_log_message('Unable to send error message e-mail to: '.$mail_to_helpdesk.', please check log instead');
+                }
               }
             }
 
             //Send e-mail notification about new application to Prof & CC
             $email_contacts = array($project_officer);
 
-            if (is_array($email_contacts)){
+            if (is_array($email_contacts) && count($email_contacts) > 0){
               foreach($email_contacts as $key => $value) {
                 //Send e-mail to inform them
                 $mail_to = $value['email'];
