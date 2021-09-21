@@ -68,7 +68,6 @@ class CRM_Amsco_Utils {
                 );
                 if(strlen($line[9]) > 12){
                   $error_msg = 'AMSCO Download - Unable to postal code for contact: '.$contact['id'].'. Postal code: '.$line[9].' is too long';
-                  CRM_Core_Error::debug_log_message($e->getMessage());
                   $errors[] = $error_msg;
                 } else {
                   $address_params['postal_code'] = $line[9];
